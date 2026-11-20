@@ -24,3 +24,7 @@
 - The 2-level correlator merges OPEN incidents within a 45-second WALL-CLOCK window on `alert_created_utc` (event times are irrelevant to merging); Level 1 matches topology via `upstream_source_id`, Level 2 falls back to same `(tenant_id, collector_id)`.
 - Watchdog: `run_watchdog_pass(now_utc=None)` is directly callable for deterministic tests; collector offline at 50s ("Collector heartbeat timeout"), source stale at 35s -> "Fair" and 55s -> "Poor" ("Stale data: ..." reasons); only-downgrade semantics make repeat passes idempotent.
 - `saas.aiops.incident_row_to_record(row, region)` takes the region explicitly — the frozen `incidents` table has no region column.
+
+## Slice 4 (dashboard live-mode chaos drills)
+- `dashboard/src/chaos.js` live drills must not require `network_device` telemetry: when only the server has egressed, `cascade_incident`/`latency_spike` derive the router identity from the server's frozen `upstream_device_real_name` field (`real_ip` stays absent — it is optional on `InternalRawEvent`).
+- Cascade downstream events are stamped with `event_time_utc` at their post time, so all consecutive posts (router→down1→down2) are ~1.5s apart in both wall clock and event time, not just the last pair.
