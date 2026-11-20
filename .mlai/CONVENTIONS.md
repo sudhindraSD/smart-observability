@@ -28,3 +28,8 @@
 ## Slice 4 (dashboard live-mode chaos drills)
 - `dashboard/src/chaos.js` live drills must not require `network_device` telemetry: when only the server has egressed, `cascade_incident`/`latency_spike` derive the router identity from the server's frozen `upstream_device_real_name` field (`real_ip` stays absent — it is optional on `InternalRawEvent`).
 - Cascade downstream events are stamped with `event_time_utc` at their post time, so all consecutive posts (router→down1→down2) are ~1.5s apart in both wall clock and event time, not just the last pair.
+
+## Demo launcher & ports (run_demo.ps1)
+- Box 2 (`saas.main:app`) is TLS-only on :8000 (`--ssl-keyfile certs/key.pem --ssl-certfile certs/cert.pem`); the Vite proxies target `https://localhost:8000`. A plain-HTTP process squatting on :8000 produces `ssl3_get_record:wrong version number` in the proxy — the symptom is the proxy, the cause is the zombie.
+- `run_demo.ps1` pre-flight kills any listener on 9000/8000/4001/4002/3000 (`Get-NetTCPConnection -State Listen` -> `Stop-Process -Force`) and regenerates certs when either `certs/cert.pem` or `certs/key.pem` is missing; Vite is launched with `--port 3000 --strictPort` so it fails loudly instead of bumping to :3001.
+- `mock_stream` ws_stream queues carry dict payloads (sole producer: `emit()`); frames must go out via `send_json` for dicts / `send_text` for str — `send_text(dict)` crashes with `AttributeError: 'dict' object has no attribute 'encode'` (regression test: `test_e_ws_stream_hospital_b_delivers_valid_json_frames`).

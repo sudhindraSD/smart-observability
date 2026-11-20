@@ -384,6 +384,20 @@ def test_e_chaos_scenarios_return_200_with_valid_events() -> None:
         assert client.post("/chaos/secret", params={"site": "nope"}).status_code == 404
 
 
+def test_e_ws_stream_hospital_b_delivers_valid_json_frames() -> None:
+    # Regression: emit() queues dict payloads onto the ws queues; feeding them
+    # straight into send_text crashed with AttributeError ('dict' object has
+    # no attribute 'encode') the moment a WS client connected.
+    with TestClient(ss.app) as client:
+        with client.websocket_connect("/ws/stream/hospital-b") as ws:
+            frame = ws.receive_json()
+            event = InternalRawEvent.model_validate(frame)
+            assert event.real_hostname in {
+                p.real_hostname for p in ss.SITES["hospital-b"].sources
+            }
+            assert event.metrics is not None
+
+
 # ---------------------------------------------------------------------------
 # f) live adapter + normalizer
 # ---------------------------------------------------------------------------

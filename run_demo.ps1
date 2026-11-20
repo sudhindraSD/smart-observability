@@ -21,8 +21,9 @@ if (-not (Test-Path $venvPython)) {
 }
 
 $certFile = Join-Path $root 'certs\cert.pem'
-if (-not (Test-Path $certFile)) {
-    Write-Host 'Self-signed TLS certificate missing - generating certs\cert.pem ...' -ForegroundColor Yellow
+$keyFile = Join-Path $root 'certs\key.pem'
+if (-not (Test-Path $certFile) -or -not (Test-Path $keyFile)) {
+    Write-Host 'Self-signed TLS certificate missing - generating certs\cert.pem + certs\key.pem ...' -ForegroundColor Yellow
     & $venvPython (Join-Path $root 'scripts\gen_certs.py')
 }
 
@@ -30,6 +31,23 @@ $dataDir = Join-Path $root 'data'
 if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Path $dataDir | Out-Null }
 $liveLog = Join-Path $dataDir 'live_host.log'
 if (-not (Test-Path $liveLog)) { New-Item -ItemType File -Path $liveLog | Out-Null }
+
+# --- pre-flight: clear zombie listeners on the five demo ports ----------------
+# A leftover plain-HTTP server on :8000 makes the Vite proxy die with
+# ssl3_get_record:wrong version number, and anything still holding :3000 makes
+# Vite silently bump to :3001. Kill whatever listens before launching.
+$demoPorts = @(9000, 8000, 4001, 4002, 3000)
+foreach ($port in $demoPorts) {
+    $zombiePids = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty OwningProcess -Unique
+    foreach ($zombiePid in $zombiePids) {
+        if ($zombiePid -eq $PID) { continue }
+        $proc = Get-Process -Id $zombiePid -ErrorAction SilentlyContinue
+        $procName = if ($proc) { $proc.ProcessName } else { 'unknown' }
+        Write-Host "Stopping zombie listener on port ${port}: PID $zombiePid ($procName)" -ForegroundColor Yellow
+        Stop-Process -Id $zombiePid -Force -ErrorAction SilentlyContinue
+    }
+}
 
 # --- child window commands ---------------------------------------------------
 # Each child: cd to repo root, title its window, set env vars, run the service.
@@ -89,7 +107,7 @@ $cmdCollectorB =
 $cmdDashboard =
     "Set-Location '$root\dashboard'; " +
     "`$host.UI.RawUI.WindowTitle = '5 - Box 2 React SaaS Dashboard (:3000)'; " +
-    'npm run dev'
+    'npm run dev -- --port 3000 --strictPort'
 
 # --- launch ------------------------------------------------------------------
 Write-Host 'Launching SentinelOps demo stack ...' -ForegroundColor Cyan

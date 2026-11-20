@@ -258,7 +258,11 @@ async def ws_stream(websocket: WebSocket, site: str) -> None:
     cfg.ws_queues.add(queue)
     try:
         while True:
-            await websocket.send_text(await queue.get())
+            item = await queue.get()
+            if isinstance(item, dict):
+                await websocket.send_json(item)
+            else:
+                await websocket.send_text(item)
     except WebSocketDisconnect:
         pass
     finally:
