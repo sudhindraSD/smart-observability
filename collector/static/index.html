@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Box 1 Collector — Egress Proof Panel</title>
+<style>
+  :root {
+    --bg: #0b0f17;
+    --panel: #121826;
+    --panel-2: #182131;
+    --border: #26324a;
+    --text: #e8eef7;
+    --muted: #8fa0b8;
+    --green: #34d399;
+    --red: #f87171;
+    --amber: #fbbf24;
+    --blue: #60a5fa;
+    --mono: "Cascadia Code", "Fira Code", Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: Inter, "Segoe UI", system-ui, sans-serif;
+    font-size: 14px; padding: 16px;
+  }
+  header {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 18px; margin-bottom: 16px;
+  }
+  header h1 { font-size: 16px; font-weight: 700; letter-spacing: .02em; }
+  header h1 span { color: var(--muted); font-weight: 400; }
+  .stat { display: flex; align-items: baseline; gap: 6px; }
+  .stat .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+  .stat .v { font-family: var(--mono); font-size: 15px; font-weight: 600; }
+  .badge {
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    padding: 3px 9px; border-radius: 999px; letter-spacing: .06em;
+  }
+  .badge.live { background: rgba(52,211,153,.15); color: var(--green); border: 1px solid var(--green); }
+  .badge.ws   { background: rgba(96,165,250,.15); color: var(--blue); border: 1px solid var(--blue); }
+  .badge.other{ background: rgba(143,160,184,.15); color: var(--muted); border: 1px solid var(--muted); }
+  .badge.pending { background: rgba(251,191,36,.15); color: var(--amber); border: 1px solid var(--amber); }
+  .badge.sent    { background: rgba(52,211,153,.15); color: var(--green); border: 1px solid var(--green); }
+  .badge.replay  { background: rgba(248,113,113,.15); color: var(--red); border: 1px solid var(--red); }
+  .spacer { flex: 1; }
+  #link-toggle {
+    font-family: var(--mono); font-size: 13px; font-weight: 700;
+    padding: 9px 16px; border-radius: 8px; cursor: pointer;
+    border: 2px solid; background: transparent; letter-spacing: .03em;
+  }
+  #link-toggle.cut { color: var(--red); border-color: var(--red); }
+  #link-toggle.cut:hover { background: rgba(248,113,113,.12); }
+  #link-toggle.restore { color: var(--green); border-color: var(--green); }
+  #link-toggle.restore:hover { background: rgba(52,211,153,.12); }
+  #link-state { font-family: var(--mono); font-size: 12px; }
+  #link-state.up { color: var(--green); }
+  #link-state.down { color: var(--red); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 980px) { .cols { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+  }
+  .card h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--muted); padding: 10px 14px; background: var(--panel-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .card h2 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+  .card.raw h2 .dot { background: var(--red); }
+  .card.egress h2 .dot { background: var(--green); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; background: var(--panel-2); position: sticky; top: 0; }
+  td.mono, .mono { font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
+  .hl-host { color: var(--red); font-weight: 700; }
+  .hl-ip { color: var(--amber); font-weight: 700; }
+  .hl-secret { color: var(--red); font-weight: 700; }
+  .dropped { color: var(--red); font-family: var(--mono); font-size: 11px; }
+  .kept { color: var(--green); font-family: var(--mono); font-size: 11px; }
+  .sha { color: var(--blue); }
+  .muted { color: var(--muted); }
+  #updated { color: var(--muted); font-size: 11px; font-family: var(--mono); margin-top: 10px; text-align: right; }
+  .empty { padding: 24px; text-align: center; color: var(--muted); }
+  pre.egress-json {
+    font-family: var(--mono); font-size: 10.5px; line-height: 1.45;
+    background: #0d1320; padding: 8px 10px; border-radius: 6px;
+    max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+    color: #c9d7ea;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>BOX 1 · EGRESS PROOF PANEL <span>// local vs wire</span></h1>
+  <div class="stat"><span class="k">Collector</span><span class="v" id="s-collector">—</span></div>
+  <div class="stat"><span class="k">Tenant</span><span class="v" id="s-tenant">—</span></div>
+  <div class="stat"><span class="k">Region</span><span class="v" id="s-region">—</span></div>
+  <div class="stat"><span class="k">Stream</span><span class="badge other" id="s-mode">—</span></div>
+  <div class="stat"><span class="k">Raw Local</span><span class="v" id="s-raw">0</span></div>
+  <div class="stat"><span class="k">Outbox Pending</span><span class="v" id="s-pending">0</span></div>
+  <div class="stat"><span class="k">Total Sent</span><span class="v" id="s-sent">0</span></div>
+  <div class="spacer"></div>
+  <span id="link-state" class="up">LINK UP</span>
+  <button id="link-toggle" class="cut">CUT SAAS LINK</button>
+</header>
+
+<div class="cols">
+  <section class="card raw">
+    <h2><span class="dot"></span>LEFT — RAW TELEMETRY TRAPPED LOCALLY (never leaves Box 1)</h2>
+    <table>
+      <thead><tr><th style="width:20%">Time</th><th>Real Hostname / IP · Log Line · Secret Types</th></tr></thead>
+      <tbody id="raw-body"><tr><td colspan="2" class="empty">waiting for telemetry…</td></tr></tbody>
+    </table>
+  </section>
+  <section class="card egress">
+    <h2><span class="dot"></span>RIGHT — EXACT ALLOW-LISTED PAYLOAD CROSSING THE WIRE</h2>
+    <table>
+      <thead><tr><th style="width:20%">Status</th><th>Egress Payload · SHA-256</th></tr></thead>
+      <tbody id="egress-body"><tr><td colspan="2" class="empty">waiting for egress…</td></tr></tbody>
+    </table>
+  </section>
+</div>
+<div id="updated"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function fmtTime(ts) { return ts ? String(ts).replace("T", " ").replace("Z", "") : "—"; }
+
+function highlightRaw(raw) {
+  const bits = [];
+  if (!raw) return '<span class="muted">(raw row pruned by retention)</span>';
+  bits.push(`<span class="hl-host">${esc(raw.real_hostname)}</span>`);
+  if (raw.real_ip) bits.push(`<span class="hl-ip">${esc(raw.real_ip)}</span>`);
+  bits.push(`<span class="muted">[${esc(raw.source_type)}]</span>`);
+  if (raw.raw_log_line) {
+    bits.push(`<div class="mono">${esc(raw.raw_log_line)}</div>`);
+  }
+  return bits.join(" ");
+}
+
+function secretTypes(egress) {
+  const types = egress?.redaction_audit?.secret_types_detected || [];
+  if (!types.length) return '<span class="kept">none detected</span>';
+  return types.map((t) => `<span class="hl-secret">${esc(t)}</span>`).join(", ");
+}
+
+function droppedFields(egress) {
+  const dropped = egress?.redaction_audit?.raw_fields_dropped || [];
+  if (!dropped.length) return '<span class="muted">—</span>';
+  return dropped.map((f) => `<span class="dropped">✕ ${esc(f)}</span>`).join(" ");
+}
+
+async function refresh() {
+  try {
+    const [statusRes, proofRes] = await Promise.all([
+      fetch("/api/status"), fetch("/api/egress-proof?limit=40"),
+    ]);
+    const st = await statusRes.json();
+    const proof = await proofRes.json();
+
+    $("s-collector").textContent = st.collector_id;
+    $("s-tenant").textContent = st.tenant_id;
+    $("s-region").textContent = st.region;
+    $("s-raw").textContent = st.raw_count;
+    $("s-pending").textContent = st.pending_count;
+    $("s-sent").textContent = st.total_sent_count;
+
+    const modeBadge = $("s-mode");
+    modeBadge.textContent = st.stream_mode.toUpperCase();
+    modeBadge.className = "badge " +
+      (st.stream_mode === "live" ? "live" : st.stream_mode === "ws" ? "ws" : "other");
+
+    const toggle = $("link-toggle");
+    const state = $("link-state");
+    if (st.link_enabled) {
+      toggle.textContent = "CUT SAAS LINK";
+      toggle.className = "cut";
+      state.textContent = "LINK UP";
+      state.className = "up";
+    } else {
+      toggle.textContent = "RESTORE SAAS LINK";
+      toggle.className = "restore";
+      state.textContent = "LINK CUT — BUFFERING LOCALLY";
+      state.className = "down";
+    }
+
+    const rawBody = $("raw-body");
+    const egressBody = $("egress-body");
+    if (!proof.rows.length) {
+      rawBody.innerHTML = '<tr><td colspan="2" class="empty">no telemetry yet</td></tr>';
+      egressBody.innerHTML = '<tr><td colspan="2" class="empty">no egress yet</td></tr>';
+    } else {
+      rawBody.innerHTML = proof.rows.map((r) => {
+        const badges = [
+          `<span class="badge ${r.status === "SENT" ? "sent" : "pending"}">${r.status}</span>`,
+          r.is_backlog_replay ? '<span class="badge replay">BACKLOG REPLAY</span>' : "",
+        ].join(" ");
+        return `<tr>
+          <td class="mono muted">${fmtTime(r.raw?.event_time_utc)}</td>
+          <td>${highlightRaw(r.raw)}
+            <div style="margin-top:4px">secrets: ${secretTypes(r.egress)}
+              &nbsp;·&nbsp; dropped: ${droppedFields(r.egress)}</div>
+            <div style="margin-top:4px">${badges}</div>
+          </td>
+        </tr>`;
+      }).join("");
+
+      egressBody.innerHTML = proof.rows.map((r) => {
+        const badges = [
+          `<span class="badge ${r.status === "SENT" ? "sent" : "pending"}">${r.status}</span>`,
+          r.is_backlog_replay ? '<span class="badge replay">BACKLOG REPLAY</span>' : "",
+        ].join(" ");
+        return `<tr>
+          <td class="mono muted">${fmtTime(r.egress_sent_utc || r.created_utc)}<div style="margin-top:4px">${badges}</div></td>
+          <td>
+            <div class="mono sha">sha256: ${esc(r.payload_sha256 || "(not yet audited)")}</div>
+            <pre class="egress-json">${esc(JSON.stringify(r.egress, null, 2))}</pre>
+          </td>
+        </tr>`;
+      }).join("");
+    }
+    $("updated").textContent = `refreshed ${new Date().toLocaleTimeString()} · auto every 1.5s`;
+  } catch (err) { /* keep last good frame */ }
+}
+
+$("link-toggle").addEventListener("click", async () => {
+  try {
+    await fetch("/control/toggle-link", { method: "POST" });
+    refresh();
+  } catch (err) { /* ignore */ }
+});
+
+refresh();
+setInterval(refresh, 1500);
+</script>
+</body>
+</html>
