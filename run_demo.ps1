@@ -104,10 +104,13 @@ $cmdCollectorB =
     "$envCollectorB; " +
     "& '$py' -m uvicorn collector.main:app --host 0.0.0.0 --port 4002"
 
+# NOTE: 'npm run dev -- --port 3000' is unsafe in this child window: powershell.exe
+# strips the bare '--' before npm sees it, so npm runs "vite 3000" and Vite silently
+# bumps off :3000. Start Vite directly (same as the "dev": "vite" script).
 $cmdDashboard =
     "Set-Location '$root\dashboard'; " +
     "`$host.UI.RawUI.WindowTitle = '5 - Box 2 React SaaS Dashboard (:3000)'; " +
-    'npm run dev -- --port 3000 --strictPort'
+    '& node node_modules\vite\bin\vite.js --port 3000 --strictPort'
 
 # --- launch ------------------------------------------------------------------
 Write-Host 'Launching SentinelOps demo stack ...' -ForegroundColor Cyan
